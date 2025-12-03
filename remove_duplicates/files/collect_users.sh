@@ -126,8 +126,6 @@ log_message "✓ Extracted $TARGET_COUNT users for this range"
 CHUNK_SIZE=$((TARGET_COUNT / PARALLEL_PROCESSES))
 if [ $CHUNK_SIZE -lt 1 ]; then
     CHUNK_SIZE=1
-    PARALLEL_PROCESSES=$TARGET_COUNT
-    log_message "⚠ Adjusted workers to $PARALLEL_PROCESSES (not enough users for more)"
 fi
 
 log_message "Step 6: Splitting into $PARALLEL_PROCESSES chunks"
@@ -173,11 +171,14 @@ for i in $(seq 0 $((PARALLEL_PROCESSES - 1))); do
         SKIPPED=0
         FAILED=0
         
-        jq -r '.[].Id' "$CHUNK_FILE" 2>/dev/null | while read USER_ID; do
+        # Read user IDs into array to avoid subshell issues
+        mapfile -t USER_IDS < <(jq -r '.[].Id' "$CHUNK_FILE" 2>/dev/null)
+        
+        for USER_ID in "${USER_IDS[@]}"; do
             PROCESSED=$((PROCESSED + 1))
             
             # Check if user already exists in master file
-            if user_exists_in_master "$USER_ID"; then
+            if jq -e --arg id "$USER_ID" '.[] | select(.Id == $id)' "$MASTER_FILE" &>/dev/null 2>&1 && [ "$SKIP_EXISTING" = true ]; then
                 SKIPPED=$((SKIPPED + 1))
                 echo "[$(date '+%Y-%m-%d %H:%M:%S')] Worker $i: ⊗ User $PROCESSED/$CHUNK_USERS - Skipped (already exists: $USER_ID)" >> "$WORKER_LOG"
                 continue
