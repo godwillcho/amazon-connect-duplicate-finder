@@ -5,9 +5,9 @@ set +e
 # ============================================
 # CONFIGURATION
 # ============================================
-INSTANCE_ID="a8fab42a-42a6-446d-b8fc-31ea25332f07"
+INSTANCE_ID=""
 START_USER=1              # First user position to collect
-END_USER=5            # Last user position to collect
+END_USER=10000            # Last user position to collect
 PARALLEL_PROCESSES=8      # Number of parallel workers
 OUTPUT_FOLDER="./duplicate_users_output"
 MASTER_FILE="$OUTPUT_FOLDER/all_users_master.json"
@@ -126,8 +126,6 @@ log_message "✓ Extracted $TARGET_COUNT users for this range"
 CHUNK_SIZE=$((TARGET_COUNT / PARALLEL_PROCESSES))
 if [ $CHUNK_SIZE -lt 1 ]; then
     CHUNK_SIZE=1
-    PARALLEL_PROCESSES=$TARGET_COUNT
-    log_message "⚠ Adjusted workers to $PARALLEL_PROCESSES (not enough users for more)"
 fi
 
 log_message "Step 6: Splitting into $PARALLEL_PROCESSES chunks"
@@ -173,28 +171,34 @@ for i in $(seq 0 $((PARALLEL_PROCESSES - 1))); do
         SKIPPED=0
         FAILED=0
         
-        jq -r '.[].Id' "$CHUNK_FILE" 2>/dev/null | while read USER_ID; do
+        # Read user IDs into array to avoid subshell issues
+        mapfile -t USER_IDS < <(jq -r '.[].Id' "$CHUNK_FILE" 2>/dev/null)
+        
+        for USER_ID in "${USER_IDS[@]}"; do
             PROCESSED=$((PROCESSED + 1))
             
             # Check if user already exists in master file
-            if user_exists_in_master "$USER_ID"; then
+            if jq -e --arg id "$USER_ID" '.[] | select(.Id == $id)' "$MASTER_FILE" &>/dev/null 2>&1 && [ "$SKIP_EXISTING" = true ]; then
                 SKIPPED=$((SKIPPED + 1))
-                echo "[$(date '+%Y-%m-%d %H:%M:%S')] Worker $i: ⊗ Skipped user $PROCESSED/$CHUNK_USERS (already exists: $USER_ID)" >> "$WORKER_LOG"
+                echo "[$(date '+%Y-%m-%d %H:%M:%S')] Worker $i: ⊗ User $PROCESSED/$CHUNK_USERS - Skipped (already exists: $USER_ID)" >> "$WORKER_LOG"
                 continue
             fi
             
             # Fetch user details
             USER_DETAIL=$(aws connect describe-user --user-id "$USER_ID" --instance-id "$INSTANCE_ID" --output json 2>&1)
             if [ $? -eq 0 ]; then
+                # Extract username and email for better logging
+                USERNAME=$(echo "$USER_DETAIL" | jq -r '.User.Username // "N/A"')
+                EMAIL=$(echo "$USER_DETAIL" | jq -r '.User.IdentityInfo.Email // "N/A"')
+                
                 echo "$USER_DETAIL" | jq -c '.User' >> "$WORKER_TEMP" 2>/dev/null
                 
-                # Log progress every 100 users or at completion
-                if [ $((PROCESSED % 100)) -eq 0 ] || [ $PROCESSED -eq $CHUNK_USERS ]; then
-                    echo "[$(date '+%Y-%m-%d %H:%M:%S')] Worker $i: ✓ Processed $PROCESSED/$CHUNK_USERS ($((PROCESSED * 100 / CHUNK_USERS))%)" >> "$WORKER_LOG"
-                fi
+                # Log progress for EVERY user with details
+                PERCENT=$((PROCESSED * 100 / CHUNK_USERS))
+                echo "[$(date '+%Y-%m-%d %H:%M:%S')] Worker $i: ✓ User $PROCESSED/$CHUNK_USERS ($PERCENT%) - $USERNAME ($EMAIL)" >> "$WORKER_LOG"
             else
                 FAILED=$((FAILED + 1))
-                echo "[$(date '+%Y-%m-%d %H:%M:%S')] Worker $i: ✗ Failed user $PROCESSED/$CHUNK_USERS (ID: $USER_ID)" >> "$WORKER_LOG"
+                echo "[$(date '+%Y-%m-%d %H:%M:%S')] Worker $i: ✗ User $PROCESSED/$CHUNK_USERS - FAILED (ID: $USER_ID)" >> "$WORKER_LOG"
             fi
         done
         
@@ -213,7 +217,8 @@ done
 
 log_message "Step 8: Monitoring workers"
 log_message "  Workers are collecting user data in parallel..."
-log_message "  Progress logged every 100 users per worker"
+log_message "  Progress logged for EVERY user extracted"
+log_message "  Check worker logs: $OUTPUT_FOLDER/collection_worker_*.log"
 
 FAILED_WORKERS=0
 
