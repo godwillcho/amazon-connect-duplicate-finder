@@ -1,0 +1,44 @@
+# Output directory
+duplicate_users_output/
+
+# Temporary files
+*.tmp
+*.temp
+/tmp/
+
+# Log files
+*.log
+
+# CSV files (if you want to exclude generated CSVs)
+# *.csv
+
+# JSON files (if you want to exclude generated JSONs)
+# *.json
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Linux
+*~
+.directory
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Editor files
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# AWS credentials (important - never commit these!)
+.aws/
+credentials
+config
