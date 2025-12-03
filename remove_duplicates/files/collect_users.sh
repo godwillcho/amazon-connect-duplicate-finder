@@ -5,7 +5,7 @@ set +e
 # ============================================
 # CONFIGURATION
 # ============================================
-INSTANCE_ID="a8fab42a-42a6-446d-b8fc-31ea25332f07"
+INSTANCE_ID=""
 START_USER=1              # First user position to collect
 END_USER=5            # Last user position to collect
 PARALLEL_PROCESSES=8      # Number of parallel workers
