@@ -2,7 +2,7 @@
 
 set +e
 
-INSTANCE_ID="a8fab42a-42a6-446d-b8fc-31ea25332f07"
+INSTANCE_ID=""
 OUTPUT_FOLDER="./duplicate_users_output"
 PARALLEL_PROCESSES=8
 
