@@ -5,7 +5,7 @@ set +e
 # ============================================
 # CONFIGURATION
 # ============================================
-INSTANCE_ID="a8fab42a-42a6-446d-b8fc-31ea25332f07"
+INSTANCE_ID=""
 START_USER=1              # First user position to collect
 END_USER=50000            # Last user position to collect (will auto-adjust to actual count)
 OUTPUT_FOLDER="./duplicate_users_output"
